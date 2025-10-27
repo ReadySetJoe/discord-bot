@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Discord Squad Overlay</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      background: transparent;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+    }
+    
+    .container {
+      padding: 20px;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #5865F2 0%, #4752C4 100%);
+      padding: 15px 20px;
+      border-radius: 10px 10px 0 0;
+      color: white;
+      font-weight: bold;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
+    }
+    
+    .header-icon {
+      width: 24px;
+      height: 24px;
+    }
+    
+    .voice-channels {
+      background: rgba(47, 49, 54, 0.95);
+      border-radius: 0 0 10px 10px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+    }
+    
+    .voice-channel {
+      padding: 15px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .voice-channel:last-child {
+      border-bottom: none;
+    }
+    
+    .channel-name {
+      color: #b9bbbe;
+      font-size: 14px;
+      margin-bottom: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .members {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    
+    .member {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 8px 12px;
+      border-radius: 8px;
+      animation: slideIn 0.3s ease-out;
+    }
+    
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+    
+    .member.leaving {
+      animation: slideOut 0.3s ease-out forwards;
+    }
+    
+    @keyframes slideOut {
+      to {
+        opacity: 0;
+        transform: translateX(20px);
+      }
+    }
+    
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid #5865F2;
+      object-fit: cover;
+    }
+    
+    .username {
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .empty-state {
+      padding: 30px 20px;
+      text-align: center;
+      color: #72767d;
+      font-size: 14px;
+    }
+    
+    .status-indicator {
+      width: 10px;
+      height: 10px;
+      background: #43b581;
+      border-radius: 50%;
+      display: inline-block;
+      margin-left: 5px;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <svg class="header-icon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+      </svg>
+      <span>Discord Squad</span>
+      <span class="status-indicator"></span>
+    </div>
+    <div class="voice-channels" id="voiceChannels">
+      <div class="empty-state">No one in voice chat</div>
+    </div>
+  </div>
+
+  <script>
+    const WS_URL = 'ws://localhost:8080'; // Change this to your server URL
+    let ws;
+    let reconnectInterval;
+    
+    function connect() {
+      ws = new WebSocket(WS_URL);
+      
+      ws.onopen = () => {
+        console.log('Connected to overlay server');
+        clearInterval(reconnectInterval);
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          handleMessage(message);
+        } catch (error) {
+          console.error('Error parsing message:', error);
+        }
+      };
+      
+      ws.onclose = () => {
+        console.log('Disconnected, reconnecting...');
+        reconnectInterval = setInterval(() => connect(), 5000);
+      };
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+    }
+    
+    function handleMessage(message) {
+      switch (message.type) {
+        case 'voice_update':
+          updateVoiceChannels(message.data);
+          break;
+        case 'voice_join':
+          showJoinAnimation(message.data);
+          break;
+        case 'voice_leave':
+          showLeaveAnimation(message.data);
+          break;
+      }
+    }
+    
+    function updateVoiceChannels(channels) {
+      const container = document.getElementById('voiceChannels');
+      
+      if (!channels || channels.length === 0) {
+        container.innerHTML = '<div class="empty-state">No one in voice chat</div>';
+        return;
+      }
+      
+      container.innerHTML = '';
+      
+      channels.forEach(channel => {
+        const channelDiv = document.createElement('div');
+        channelDiv.className = 'voice-channel';
+        
+        const channelName = document.createElement('div');
+        channelName.className = 'channel-name';
+        channelName.textContent = channel.channelName;
+        
+        const membersDiv = document.createElement('div');
+        membersDiv.className = 'members';
+        
+        channel.members.forEach(member => {
+          const memberDiv = createMemberElement(member);
+          membersDiv.appendChild(memberDiv);
+        });
+        
+        channelDiv.appendChild(channelName);
+        channelDiv.appendChild(membersDiv);
+        container.appendChild(channelDiv);
+      });
+    }
+    
+    function createMemberElement(member) {
+      const memberDiv = document.createElement('div');
+      memberDiv.className = 'member';
+      memberDiv.dataset.memberId = member.id;
+      
+      const avatar = document.createElement('img');
+      avatar.className = 'avatar';
+      avatar.src = member.avatar;
+      avatar.alt = member.username;
+      
+      const username = document.createElement('div');
+      username.className = 'username';
+      username.textContent = member.displayName;
+      
+      memberDiv.appendChild(avatar);
+      memberDiv.appendChild(username);
+      
+      return memberDiv;
+    }
+    
+    function showJoinAnimation(member) {
+      // Visual feedback for joins (optional enhancement)
+      console.log(`${member.displayName} joined ${member.channelName}`);
+    }
+    
+    function showLeaveAnimation(member) {
+      // Visual feedback for leaves (optional enhancement)
+      console.log(`${member.displayName} left ${member.channelName}`);
+    }
+    
+    // Connect on load
+    connect();
+  </script>
+</body>
+</html>

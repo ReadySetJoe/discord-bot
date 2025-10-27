@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Activity Feed Overlay</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      background: transparent;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+    }
+    
+    .container {
+      padding: 20px;
+      max-width: 500px;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #43B581 0%, #3AA76D 100%);
+      padding: 12px 20px;
+      border-radius: 10px 10px 0 0;
+      color: white;
+      font-weight: bold;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 4px 15px rgba(67, 181, 129, 0.3);
+    }
+    
+    .feed {
+      background: rgba(47, 49, 54, 0.95);
+      border-radius: 0 0 10px 10px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+      max-height: 400px;
+      overflow: hidden;
+    }
+    
+    .event {
+      padding: 15px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      animation: slideInFeed 0.5s ease-out;
+      opacity: 0;
+      animation-fill-mode: forwards;
+    }
+    
+    @keyframes slideInFeed {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .event:last-child {
+      border-bottom: none;
+    }
+    
+    .event.old {
+      animation: fadeOut 0.5s ease-out forwards;
+    }
+    
+    @keyframes fadeOut {
+      to {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+    }
+    
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      object-fit: cover;
+      border: 2px solid #43B581;
+    }
+    
+    .event-content {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .event-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+    }
+    
+    .username {
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    
+    .event-type {
+      color: #b9bbbe;
+      font-size: 12px;
+    }
+    
+    .timestamp {
+      color: #72767d;
+      font-size: 11px;
+      margin-left: auto;
+    }
+    
+    .event-message {
+      color: #dcddde;
+      font-size: 13px;
+      word-wrap: break-word;
+      line-height: 1.4;
+    }
+    
+    .channel-tag {
+      color: #7289da;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    
+    .empty-state {
+      padding: 30px 20px;
+      text-align: center;
+      color: #72767d;
+      font-size: 14px;
+    }
+    
+    .member-join {
+      background: rgba(67, 181, 129, 0.1);
+    }
+    
+    .milestone-event {
+      background: linear-gradient(90deg, rgba(255, 215, 0, 0.15) 0%, transparent 100%);
+      border-left: 3px solid #FFD700;
+    }
+    
+    .milestone-icon {
+      font-size: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span>💬</span>
+      <span>Live Activity</span>
+    </div>
+    <div class="feed" id="feed">
+      <div class="empty-state">Waiting for activity...</div>
+    </div>
+  </div>
+
+  <script>
+    const WS_URL = 'ws://localhost:8080'; // Change this to your server URL
+    const MAX_EVENTS = 5;
+    let ws;
+    let events = [];
+    
+    function connect() {
+      ws = new WebSocket(WS_URL);
+      
+      ws.onopen = () => {
+        console.log('Connected to overlay server');
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          handleMessage(message);
+        } catch (error) {
+          console.error('Error parsing message:', error);
+        }
+      };
+      
+      ws.onclose = () => {
+        console.log('Disconnected, reconnecting...');
+        setTimeout(() => connect(), 5000);
+      };
+    }
+    
+    function handleMessage(message) {
+      switch (message.type) {
+        case 'message':
+          addEvent({
+            type: 'message',
+            data: message.data,
+            timestamp: message.timestamp || Date.now()
+          });
+          break;
+        case 'member_join':
+          addEvent({
+            type: 'member_join',
+            data: message.data,
+            timestamp: message.timestamp || Date.now()
+          });
+          break;
+        case 'milestone':
+          addEvent({
+            type: 'milestone',
+            data: message.data,
+            timestamp: message.timestamp || Date.now()
+          });
+          break;
+      }
+    }
+    
+    function addEvent(event) {
+      events.unshift(event);
+      
+      if (events.length > MAX_EVENTS) {
+        events = events.slice(0, MAX_EVENTS);
+      }
+      
+      renderFeed();
+    }
+    
+    function renderFeed() {
+      const feed = document.getElementById('feed');
+      
+      if (events.length === 0) {
+        feed.innerHTML = '<div class="empty-state">Waiting for activity...</div>';
+        return;
+      }
+      
+      feed.innerHTML = '';
+      
+      events.forEach((event, index) => {
+        const eventDiv = createEventElement(event);
+        eventDiv.style.animationDelay = `${index * 0.1}s`;
+        feed.appendChild(eventDiv);
+      });
+    }
+    
+    function createEventElement(event) {
+      const eventDiv = document.createElement('div');
+      eventDiv.className = 'event';
+      
+      if (event.type === 'member_join') {
+        eventDiv.classList.add('member-join');
+      } else if (event.type === 'milestone') {
+        eventDiv.classList.add('milestone-event');
+      }
+      
+      const timestamp = new Date(event.timestamp);
+      const timeStr = formatTime(timestamp);
+      
+      if (event.type === 'message') {
+        eventDiv.innerHTML = `
+          <img class="avatar" src="${event.data.avatar}" alt="${event.data.username}">
+          <div class="event-content">
+            <div class="event-header">
+              <span class="username">${event.data.displayName}</span>
+              <span class="timestamp">${timeStr}</span>
+            </div>
+            <div class="event-message">${escapeHtml(event.data.content)}</div>
+            <div class="channel-tag">#${event.data.channelName}</div>
+          </div>
+        `;
+      } else if (event.type === 'member_join') {
+        eventDiv.innerHTML = `
+          <img class="avatar" src="${event.data.avatar}" alt="${event.data.username}">
+          <div class="event-content">
+            <div class="event-header">
+              <span class="username">${event.data.displayName}</span>
+              <span class="event-type">joined the server</span>
+              <span class="timestamp">${timeStr}</span>
+            </div>
+            <div class="event-message">Welcome to the community! 👋</div>
+          </div>
+        `;
+      } else if (event.type === 'milestone') {
+        eventDiv.innerHTML = `
+          <div class="milestone-icon">🎉</div>
+          <div class="event-content">
+            <div class="event-header">
+              <span class="username">Milestone Reached!</span>
+              <span class="timestamp">${timeStr}</span>
+            </div>
+            <div class="event-message">${event.data.message}</div>
+          </div>
+        `;
+      }
+      
+      return eventDiv;
+    }
+    
+    function formatTime(date) {
+      const now = new Date();
+      const diff = Math.floor((now - date) / 1000);
+      
+      if (diff < 60) return 'just now';
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      return date.toLocaleDateString();
+    }
+    
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    // Update timestamps every minute
+    setInterval(() => {
+      renderFeed();
+    }, 60000);
+    
+    connect();
+  </script>
+</body>
+</html>

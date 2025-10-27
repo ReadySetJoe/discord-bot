@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Milestone Tracker Overlay</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      background: transparent;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+    }
+    
+    .container {
+      padding: 20px;
+      max-width: 400px;
+    }
+    
+    .stats-card {
+      background: rgba(47, 49, 54, 0.95);
+      border-radius: 12px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+    }
+    
+    .card-header {
+      background: linear-gradient(135deg, #7289DA 0%, #5B6EAE 100%);
+      padding: 15px 20px;
+      color: white;
+      font-weight: bold;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    
+    .stat-item {
+      background: rgba(47, 49, 54, 0.95);
+      padding: 20px;
+      text-align: center;
+      transition: transform 0.3s ease;
+    }
+    
+    .stat-item:hover {
+      transform: scale(1.05);
+    }
+    
+    .stat-value {
+      font-size: 32px;
+      font-weight: bold;
+      color: #ffffff;
+      margin-bottom: 5px;
+      animation: countUp 0.5s ease-out;
+    }
+    
+    @keyframes countUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #b9bbbe;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .stat-icon {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    
+    .progress-section {
+      padding: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .progress-title {
+      color: #b9bbbe;
+      font-size: 12px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
+    }
+    
+    .progress-bar {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #7289DA 0%, #5B6EAE 100%);
+      border-radius: 4px;
+      transition: width 0.5s ease;
+      position: relative;
+    }
+    
+    .progress-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+      animation: shimmer 2s infinite;
+    }
+    
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+    
+    .progress-text {
+      color: #dcddde;
+      font-size: 14px;
+      margin-top: 5px;
+      text-align: center;
+    }
+    
+    .milestone-celebration {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+      color: #000;
+      padding: 30px 40px;
+      border-radius: 15px;
+      font-size: 24px;
+      font-weight: bold;
+      text-align: center;
+      box-shadow: 0 10px 40px rgba(255, 215, 0, 0.5);
+      animation: celebrationPop 0.5s ease-out;
+      z-index: 1000;
+      display: none;
+    }
+    
+    .milestone-celebration.show {
+      display: block;
+    }
+    
+    @keyframes celebrationPop {
+      0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.5);
+      }
+      50% {
+        transform: translate(-50%, -50%) scale(1.1);
+      }
+      100% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+      }
+    }
+    
+    .confetti {
+      position: fixed;
+      width: 10px;
+      height: 10px;
+      background: #FFD700;
+      position: absolute;
+      animation: confettiFall 3s linear;
+    }
+    
+    @keyframes confettiFall {
+      to {
+        transform: translateY(100vh) rotate(360deg);
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="stats-card">
+      <div class="card-header">
+        <span>📊</span>
+        <span>Server Stats</span>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-icon">👥</div>
+          <div class="stat-value" id="memberCount">0</div>
+          <div class="stat-label">Members</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-icon">🟢</div>
+          <div class="stat-value" id="onlineCount">0</div>
+          <div class="stat-label">Online</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-icon">🎤</div>
+          <div class="stat-value" id="voiceCount">0</div>
+          <div class="stat-label">In Voice</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-icon">⭐</div>
+          <div class="stat-value" id="milestoneCount">0</div>
+          <div class="stat-label">Milestones</div>
+        </div>
+      </div>
+      <div class="progress-section">
+        <div class="progress-title">Next Milestone</div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+        </div>
+        <div class="progress-text" id="progressText">0 / 0 members</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="milestone-celebration" id="celebration">
+    <div id="celebrationText">🎉 Milestone Reached! 🎉</div>
+  </div>
+
+  <script>
+    const WS_URL = 'ws://localhost:8080'; // Change this to your server URL
+    let ws;
+    let stats = { memberCount: 0, onlineCount: 0, voiceCount: 0 };
+    let milestonesReached = 0;
+    
+    const MILESTONES = [100, 250, 500, 1000, 2500, 5000, 10000];
+    
+    function connect() {
+      ws = new WebSocket(WS_URL);
+      
+      ws.onopen = () => {
+        console.log('Connected to overlay server');
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          handleMessage(message);
+        } catch (error) {
+          console.error('Error parsing message:', error);
+        }
+      };
+      
+      ws.onclose = () => {
+        console.log('Disconnected, reconnecting...');
+        setTimeout(() => connect(), 5000);
+      };
+    }
+    
+    function handleMessage(message) {
+      switch (message.type) {
+        case 'stats':
+          updateStats(message.data);
+          break;
+        case 'milestone':
+          showMilestoneCelebration(message.data);
+          break;
+      }
+    }
+    
+    function updateStats(newStats) {
+      stats = { ...stats, ...newStats };
+      
+      animateValue('memberCount', parseInt(document.getElementById('memberCount').textContent), stats.memberCount);
+      animateValue('onlineCount', parseInt(document.getElementById('onlineCount').textContent), stats.onlineCount);
+      animateValue('voiceCount', parseInt(document.getElementById('voiceCount').textContent), stats.voiceCount);
+      
+      updateProgress();
+    }
+    
+    function animateValue(id, start, end) {
+      const element = document.getElementById(id);
+      const duration = 500;
+      const startTime = performance.now();
+      
+      function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        const current = Math.floor(start + (end - start) * progress);
+        element.textContent = current.toLocaleString();
+        
+        if (progress < 1) {
+          requestAnimationFrame(update);
+        }
+      }
+      
+      requestAnimationFrame(update);
+    }
+    
+    function updateProgress() {
+      const currentMembers = stats.memberCount;
+      let nextMilestone = MILESTONES.find(m => m > currentMembers);
+      let previousMilestone = 0;
+      
+      if (!nextMilestone) {
+        nextMilestone = MILESTONES[MILESTONES.length - 1];
+        previousMilestone = nextMilestone;
+      } else {
+        const index = MILESTONES.indexOf(nextMilestone);
+        previousMilestone = index > 0 ? MILESTONES[index - 1] : 0;
+      }
+      
+      const progress = ((currentMembers - previousMilestone) / (nextMilestone - previousMilestone)) * 100;
+      
+      document.getElementById('progressFill').style.width = `${Math.min(progress, 100)}%`;
+      document.getElementById('progressText').textContent = 
+        `${currentMembers.toLocaleString()} / ${nextMilestone.toLocaleString()} members`;
+    }
+    
+    function showMilestoneCelebration(milestone) {
+      milestonesReached++;
+      document.getElementById('milestoneCount').textContent = milestonesReached;
+      
+      const celebration = document.getElementById('celebration');
+      const text = document.getElementById('celebrationText');
+      text.textContent = milestone.message || '🎉 Milestone Reached! 🎉';
+      
+      celebration.classList.add('show');
+      
+      // Create confetti
+      for (let i = 0; i < 50; i++) {
+        setTimeout(() => createConfetti(), i * 30);
+      }
+      
+      setTimeout(() => {
+        celebration.classList.remove('show');
+      }, 5000);
+    }
+    
+    function createConfetti() {
+      const confetti = document.createElement('div');
+      confetti.className = 'confetti';
+      confetti.style.left = Math.random() * 100 + '%';
+      confetti.style.background = ['#FFD700', '#FFA500', '#FF6347', '#4169E1', '#32CD32'][Math.floor(Math.random() * 5)];
+      confetti.style.animationDuration = (Math.random() * 2 + 1) + 's';
+      document.body.appendChild(confetti);
+      
+      setTimeout(() => confetti.remove(), 3000);
+    }
+    
+    connect();
+  </script>
+</body>
+</html>
