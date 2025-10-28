@@ -17,7 +17,10 @@ const server = app.listen(PORT, () => {
   console.log(`Overlay server running on port ${PORT}`);
 });
 
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ 
+  server,
+  perMessageDeflate: false // Disable compression to avoid Blob issues
+});
 
 // Store recent events for new connections
 const recentEvents = {
@@ -53,7 +56,9 @@ wss.on('connection', (ws, req) => {
   
   ws.on('message', (message) => {
     try {
+      console.log('Server received message:', typeof message, message.length, 'bytes');
       const event = JSON.parse(message);
+      console.log('Parsed event:', event.type);
       
       // Store events for replay
       switch (event.type) {
@@ -75,9 +80,16 @@ wss.on('connection', (ws, req) => {
       }
       
       // Broadcast to all connected clients
+      const messageStr = message.toString();
+      console.log(`Broadcasting to ${wss.clients.size} clients:`, event.type);
+      
       wss.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
-          client.send(message);
+          try {
+            client.send(messageStr);
+          } catch (sendError) {
+            console.error('Error sending message to client:', sendError);
+          }
         }
       });
     } catch (error) {
