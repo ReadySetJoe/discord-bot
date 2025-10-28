@@ -78,6 +78,7 @@
       padding: 8px 12px;
       border-radius: 8px;
       animation: slideIn 0.3s ease-out;
+      transition: transform 0.2s ease, opacity 0.3s ease;
     }
     
     @keyframes slideIn {
@@ -172,6 +173,9 @@
     let ws;
     let reconnectInterval;
     
+    // State management for voice channels
+    let currentChannels = new Map(); // channelId -> { channelName, members: Map(memberId -> member) }
+    
     function connect() {
       ws = new WebSocket(WS_URL);
       
@@ -183,6 +187,7 @@
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
+          console.log('Received message:', message.type, message.data);
           handleMessage(message);
         } catch (error) {
           console.error('Error parsing message:', error);
@@ -200,41 +205,75 @@
     }
     
     function handleMessage(message) {
-      switch (message.type) {
-        case 'voice_update':
-          updateVoiceChannels(message.data);
-          break;
-        case 'voice_join':
-          showJoinAnimation(message.data);
-          break;
-        case 'voice_leave':
-          showLeaveAnimation(message.data);
-          break;
+      try {
+        switch (message.type) {
+          case 'voice_update':
+            console.log('Processing voice_update with', message.data.length, 'channels');
+            updateVoiceChannels(message.data);
+            break;
+          case 'voice_join':
+            console.log('Processing voice_join for', message.data.displayName, 'in', message.data.channelName);
+            showJoinAnimation(message.data);
+            break;
+          case 'voice_leave':
+            console.log('Processing voice_leave for', message.data.displayName, 'from', message.data.channelName);
+            showLeaveAnimation(message.data);
+            break;
+          default:
+            console.log('Unknown message type:', message.type);
+        }
+      } catch (error) {
+        console.error('Error handling message:', error, message);
       }
     }
     
     function updateVoiceChannels(channels) {
+      // Update our internal state
+      currentChannels.clear();
+      
+      if (channels && channels.length > 0) {
+        channels.forEach(channel => {
+          const membersMap = new Map();
+          channel.members.forEach(member => {
+            membersMap.set(member.id, member);
+          });
+          
+          currentChannels.set(channel.channelName, {
+            channelName: channel.channelName,
+            members: membersMap
+          });
+        });
+      }
+      
+      // Re-render the entire display
+      renderVoiceChannels();
+    }
+    
+    function renderVoiceChannels() {
       const container = document.getElementById('voiceChannels');
       
-      if (!channels || channels.length === 0) {
+      if (currentChannels.size === 0) {
         container.innerHTML = '<div class="empty-state">No one in voice chat</div>';
         return;
       }
       
       container.innerHTML = '';
       
-      channels.forEach(channel => {
+      currentChannels.forEach((channelData, channelKey) => {
+        if (channelData.members.size === 0) return; // Skip empty channels
+        
         const channelDiv = document.createElement('div');
         channelDiv.className = 'voice-channel';
+        channelDiv.dataset.channelId = channelKey;
         
         const channelName = document.createElement('div');
         channelName.className = 'channel-name';
-        channelName.textContent = channel.channelName;
+        channelName.textContent = channelData.channelName;
         
         const membersDiv = document.createElement('div');
         membersDiv.className = 'members';
         
-        channel.members.forEach(member => {
+        channelData.members.forEach(member => {
           const memberDiv = createMemberElement(member);
           membersDiv.appendChild(memberDiv);
         });
@@ -252,12 +291,15 @@
       
       const avatar = document.createElement('img');
       avatar.className = 'avatar';
-      avatar.src = member.avatar;
+      avatar.src = member.avatar || `https://cdn.discordapp.com/embed/avatars/${member.id % 5}.png`;
       avatar.alt = member.username;
+      avatar.onerror = () => {
+        avatar.src = `https://cdn.discordapp.com/embed/avatars/${member.id % 5}.png`;
+      };
       
       const username = document.createElement('div');
       username.className = 'username';
-      username.textContent = member.displayName;
+      username.textContent = member.displayName || member.username;
       
       memberDiv.appendChild(avatar);
       memberDiv.appendChild(username);
@@ -265,14 +307,102 @@
       return memberDiv;
     }
     
-    function showJoinAnimation(member) {
-      // Visual feedback for joins (optional enhancement)
-      console.log(`${member.displayName} joined ${member.channelName}`);
+    function showJoinAnimation(memberData) {
+      console.log(`${memberData.displayName} joined ${memberData.channelName}`);
+      
+      // Add member to our state
+      const channelKey = memberData.channelName; // Use channelName as the key since bot doesn't send channelId
+      
+      if (!currentChannels.has(channelKey)) {
+        currentChannels.set(channelKey, {
+          channelName: memberData.channelName,
+          members: new Map()
+        });
+      }
+      
+      currentChannels.get(channelKey).members.set(memberData.id, memberData);
+      
+      // Check if we need to create the channel element
+      let channelElement = document.querySelector(`[data-channel-id="${channelKey}"]`);
+      const container = document.getElementById('voiceChannels');
+      
+      // Remove empty state if it exists
+      const emptyState = container.querySelector('.empty-state');
+      if (emptyState) {
+        emptyState.remove();
+      }
+      
+      if (!channelElement) {
+        // Create new channel element
+        channelElement = document.createElement('div');
+        channelElement.className = 'voice-channel';
+        channelElement.dataset.channelId = channelKey;
+        
+        const channelName = document.createElement('div');
+        channelName.className = 'channel-name';
+        channelName.textContent = memberData.channelName;
+        
+        const membersDiv = document.createElement('div');
+        membersDiv.className = 'members';
+        
+        channelElement.appendChild(channelName);
+        channelElement.appendChild(membersDiv);
+        container.appendChild(channelElement);
+      }
+      
+      // Add the member to the channel
+      const membersDiv = channelElement.querySelector('.members');
+      const memberElement = createMemberElement(memberData);
+      membersDiv.appendChild(memberElement);
+      
+      // Trigger animation
+      setTimeout(() => {
+        memberElement.style.transform = 'scale(1.05)';
+        setTimeout(() => {
+          memberElement.style.transform = 'scale(1)';
+        }, 200);
+      }, 100);
     }
     
-    function showLeaveAnimation(member) {
-      // Visual feedback for leaves (optional enhancement)
-      console.log(`${member.displayName} left ${member.channelName}`);
+    function showLeaveAnimation(memberData) {
+      console.log(`${memberData.displayName} left ${memberData.channelName}`);
+      
+      // Remove member from our state
+      const channelKey = memberData.channelName; // Use channelName as the key since bot doesn't send channelId
+      
+      if (currentChannels.has(channelKey)) {
+        currentChannels.get(channelKey).members.delete(memberData.id);
+        
+        // Remove channel if empty
+        if (currentChannels.get(channelKey).members.size === 0) {
+          currentChannels.delete(channelKey);
+        }
+      }
+      
+      // Find and remove the member element with animation
+      const memberElement = document.querySelector(`[data-member-id="${memberData.id}"]`);
+      if (memberElement) {
+        memberElement.classList.add('leaving');
+        
+        setTimeout(() => {
+          memberElement.remove();
+          
+          // Check if channel is now empty and remove it
+          const channelElement = document.querySelector(`[data-channel-id="${channelKey}"]`);
+          if (channelElement) {
+            const membersDiv = channelElement.querySelector('.members');
+            if (membersDiv && membersDiv.children.length === 0) {
+              channelElement.remove();
+            }
+          }
+          
+          // Show empty state if no channels left
+          const container = document.getElementById('voiceChannels');
+          if (container.children.length === 0) {
+            container.innerHTML = '<div class="empty-state">No one in voice chat</div>';
+          }
+        }, 300); // Match the CSS animation duration
+      }
     }
     
     // Connect on load
