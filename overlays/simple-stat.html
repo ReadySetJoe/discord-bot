@@ -87,7 +87,21 @@
   </div>
 
   <script>
-    const WS_URL = 'ws://web-production-d90a.up.railway.app/';
+    // Auto-detect WebSocket URL based on environment
+    function getWebSocketURL() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      
+      // If running locally, use localhost
+      if (host.includes('localhost') || host.includes('127.0.0.1')) {
+        return 'ws://localhost:8080';
+      }
+      
+      // For production, use the current host with WebSocket protocol
+      return `${protocol}//${host}`;
+    }
+    
+    const WS_URL = getWebSocketURL();
     
     // Customizable settings - edit these!
     const CONFIG = {
@@ -100,10 +114,11 @@
     let currentValue = 0;
     
     function connect() {
+      console.log(`Attempting to connect to: ${WS_URL}`);
       ws = new WebSocket(WS_URL);
       
       ws.onopen = () => {
-        console.log('Connected to overlay server');
+        console.log('Connected to overlay server successfully');
         updateDisplay();
       };
       
@@ -118,8 +133,13 @@
         }
       };
       
-      ws.onclose = () => {
-        console.log('Disconnected, reconnecting...');
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        console.error('Connection URL was:', WS_URL);
+      };
+      
+      ws.onclose = (event) => {
+        console.log(`Disconnected (Code: ${event.code}, Reason: ${event.reason}), reconnecting in 5 seconds...`);
         setTimeout(() => connect(), 5000);
       };
     }

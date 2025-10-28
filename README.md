@@ -99,9 +99,9 @@ Live server statistics with progress bars toward the next member milestone.
 
 3. Add environment variables in Railway dashboard:
    - `DISCORD_BOT_TOKEN`
-   - `WS_SERVER_URL` (will be your Railway URL, e.g., `wss://your-app.railway.app`)
 
-4. Update OBS browser sources to use your Railway URL
+4. Update OBS browser sources to use your Railway URL (e.g., `https://your-app.railway.app/simple-stat.html`)
+   - The overlays will automatically detect the production environment and connect via secure WebSocket
 
 ### Option 2: Heroku
 

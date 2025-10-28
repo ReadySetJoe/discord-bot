@@ -164,7 +164,21 @@
   </div>
 
   <script>
-    const WS_URL = 'ws://web-production-d90a.up.railway.app/'; // Change this to your server URL
+    // Auto-detect WebSocket URL based on environment
+    function getWebSocketURL() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      
+      // If running locally, use localhost
+      if (host.includes('localhost') || host.includes('127.0.0.1')) {
+        return 'ws://localhost:8080';
+      }
+      
+      // For production, use the current host with WebSocket protocol
+      return `${protocol}//${host}`;
+    }
+    
+    const WS_URL = getWebSocketURL();
     const MAX_EVENTS = 5;
     let ws;
     let events = [];

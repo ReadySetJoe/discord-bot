@@ -6,8 +6,11 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Serve static overlay files
-app.use(cors());
+// Serve static overlay files with permissive CORS for OBS compatibility
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 app.use(express.static(path.join(__dirname, 'overlays')));
 
 const server = app.listen(PORT, () => {
@@ -27,8 +30,10 @@ const recentEvents = {
 const MAX_ACTIVITY_EVENTS = 10;
 const MAX_MILESTONE_EVENTS = 5;
 
-wss.on('connection', (ws) => {
-  console.log('New client connected');
+wss.on('connection', (ws, req) => {
+  const clientIP = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  console.log(`New client connected from ${clientIP}`);
+  console.log(`Total connected clients: ${wss.clients.size}`);
   
   // Send recent data to new connections
   if (recentEvents.stats) {
