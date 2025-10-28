@@ -260,18 +260,43 @@
     const MILESTONES = [100, 250, 500, 1000, 2500, 5000, 10000];
     
     function connect() {
+      console.log(`Attempting to connect to: ${WS_URL}`);
       ws = new WebSocket(WS_URL);
+      
+      // Ensure we handle text messages properly
+      ws.binaryType = 'blob';
       
       ws.onopen = () => {
         console.log('Connected to overlay server');
+        console.log('WebSocket ready state:', ws.readyState);
+        console.log('WebSocket binary type:', ws.binaryType);
       };
       
-      ws.onmessage = (event) => {
+      ws.onmessage = async (event) => {
         try {
-          const message = JSON.parse(event.data);
+          let messageData = event.data;
+          
+          // Handle different message data types
+          if (messageData instanceof Blob) {
+            console.log('Received Blob message, converting to text...');
+            messageData = await messageData.text();
+          } else if (messageData instanceof ArrayBuffer) {
+            console.log('Received ArrayBuffer message, converting to text...');
+            messageData = new TextDecoder().decode(messageData);
+          } else if (typeof messageData !== 'string') {
+            console.error('Unexpected message format:', typeof messageData, messageData);
+            return;
+          }
+          
+          // Parse the JSON message
+          const message = JSON.parse(messageData);
           handleMessage(message);
         } catch (error) {
           console.error('Error parsing message:', error);
+          console.error('Raw message data:', event.data);
+          console.error('Message data type:', typeof event.data);
+          console.error('Is Blob:', event.data instanceof Blob);
+          console.error('Is ArrayBuffer:', event.data instanceof ArrayBuffer);
         }
       };
       
